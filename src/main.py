@@ -2,7 +2,7 @@ import base64
 import logging
 import os
 
-import requests
+import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException
 
 app = FastAPI(
@@ -117,8 +117,9 @@ async def resnet(img: UploadFile = File(...)):
 
     predict_request = '{"instances" : [{"b64": "%s"}]}' % jpeg_bytes
     try:
-        response = requests.post(TENSORFLOW_URL, data=predict_request)
-    except requests.ConnectionError:
+        async with httpx.AsyncClient() as client:
+            response = await client.post(TENSORFLOW_URL, data=predict_request)
+    except httpx.HTTPError:
         logger.exception("Cannot connect to TensorFlow", extra={
             "url": TENSORFLOW_URL,
         })
