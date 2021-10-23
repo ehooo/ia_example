@@ -1,11 +1,20 @@
+import base64
 import logging
+import os
 
+import requests
 from fastapi import FastAPI, UploadFile, File, HTTPException
 
 app = FastAPI(
     docs_url="/doc",
 )
 logger = logging.getLogger(__name__)
+
+TENSORFLOW_URL = 'http://{host}:{post}/v1/models/{model}:predict'.format(
+    host=os.environ.get('TENSORFLOW_HOST', 'localhost'),
+    post=os.environ.get('TENSORFLOW_API_REST_PORT', 8501),
+    model=os.environ.get('MODEL_NAME', 'resnet'),
+)
 
 
 @app.post(
@@ -58,20 +67,71 @@ logger = logging.getLogger(__name__)
                 },
             },
             "description": "Invalid file type.",
+        },
+        500: {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "title": "Tensorflow error response",
+                        "type": "object",
+                        "properties": {
+                            'detail': {
+                                'title': 'Error message', 'type': 'string',
+                            }
+                        },
+                    },
+                    "examples": {
+                        "invalid": {
+                            "summary": "Invalid response from TensorFlow",
+                            "value": {
+                                "detail": "Error processing file",
+                            },
+                        }
+                    },
+                },
+            },
+            "description": "Error sending data to TensorFlow.",
         }
     },
 )
 async def resnet(img: UploadFile = File(...)):
     if not img.content_type.startswith('image/'):
-        logger.debug("Invalid file {} named {}".format(img.content_type, img.filename))
+        logger.debug("Invalid file", extra={
+            'Content-Type': img.content_type,
+            'Filename': img.filename
+        })
         raise HTTPException(status_code=400, detail="Invalid content type")
 
+    logger.debug("Read file", extra={
+        'Content-Type': img.content_type,
+        'Filename': img.filename
+    })
     contents = await img.read()
-    logger.debug("Read file {} named {}".format(img.content_type, img.filename))
+    jpeg_bytes = base64.b64encode(contents).decode('utf-8')
+
+    predict_request = '{"instances" : [{"b64": "%s"}]}' % jpeg_bytes
+    response = requests.post(TENSORFLOW_URL, data=predict_request)
+    logger.info("Response from TensorFlow", extra={
+        'raw': response.text,
+        'time': response.elapsed.total_seconds(),
+        'status': response.status_code,
+    })
+    tf_data = response.json()
+    if response.status_code != 200:
+        error = tf_data.get("error", "Error processing file")
+        raise HTTPException(status_code=500, detail=error)
+    predictions = tf_data.get("predictions")
+    if not predictions:
+        raise HTTPException(status_code=500, detail="No predictions received")
+    classes = predictions[0].get("classes")
+    if not isinstance(classes, int):
+        raise HTTPException(status_code=500, detail="Unexpected response from TensorFlow")
+
     return {
-        'class': 100
+        'class': classes
     }
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    reload = '--reload' in os.environ.get('API_ARGS', '')
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
