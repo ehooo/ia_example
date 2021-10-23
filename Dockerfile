@@ -1,5 +1,13 @@
 FROM tensorflow/serving
+ENV LC_ALL=C.UTF-8
+ENV LANG=C.UTF-8
 ENV MODEL_NAME=resnet
+ENV TENSORFLOW_PORT=8500
+ENV TENSORFLOW_API_REST_PORT=8501
+ENV TENSORFLOW_ARGS=""
+ENV TENSORFLOW_HOST="localhost"
+
+EXPOSE 8000
 
 WORKDIR /code
 
@@ -15,4 +23,8 @@ RUN apt update && \
 
 ADD ./requirements.txt .
 RUN pip3 install -r requirements.txt
+ADD ./api_entrypoint.sh /usr/bin/.
 COPY ./src .
+
+ENTRYPOINT ["bash"]
+CMD ["/usr/bin/api_entrypoint.sh"]

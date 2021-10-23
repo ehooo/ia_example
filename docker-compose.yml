@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+  web:
+    image: "ia_example:latest"
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      TENSORFLOW_HOST: localhost
+    ports:
+      - "8000:8000"
+    volumes:
+      - "./src/:/code/"
+      - "./api_entrypoint.sh:/usr/bin/api_entrypoint.sh"
+    user: "1000:1000"
