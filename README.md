@@ -50,7 +50,7 @@ docker run -d -p 8000:8000 --name ia_example -e MODEL_NAME=resnet -t ia_example:
 ```
 * With Docker-compose
   * __NOTE :__ In docker compose will be deployed two containers,
-one with the API other with TensorFlow.
+one with the API other with TensorFlow. Also include [Prometheus](https://prometheus.io/) monitoring system.
 ```shell
 docker-compose up -d
 ```
