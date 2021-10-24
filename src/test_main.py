@@ -16,9 +16,9 @@ CURRENT_PATH = os.path.dirname(os.path.realpath(__file__))
 client = TestClient(app)
 
 
-class TestLogHandler(Handler):
+class LoggerTestHandler(Handler):
     def __init__(self, *args, **kwargs):
-        super(TestLogHandler, self).__init__(*args, **kwargs)
+        super(LoggerTestHandler, self).__init__(*args, **kwargs)
         self.logs = defaultdict(list)
 
     def emit(self, record):
@@ -28,7 +28,7 @@ class TestLogHandler(Handler):
         self.logs = defaultdict(list)
 
 
-test_handler = TestLogHandler()
+test_handler = LoggerTestHandler()
 logger.addHandler(test_handler)
 logger.setLevel(logging.DEBUG)
 
