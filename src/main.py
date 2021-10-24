@@ -4,6 +4,7 @@ import os
 
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from pydantic import BaseModel
 
 app = FastAPI(
     docs_url="/doc",
@@ -15,6 +16,10 @@ TENSORFLOW_URL = "http://{host}:{post}/v1/models/{model}:predict".format(
     post=os.environ.get("TENSORFLOW_API_REST_PORT", 8501),
     model=os.environ.get("MODEL_NAME", "resnet"),
 )
+
+
+class MessageError(BaseModel):
+    detail: str
 
 
 @app.post(
@@ -45,17 +50,9 @@ TENSORFLOW_URL = "http://{host}:{post}/v1/models/{model}:predict".format(
             "description": "Return the JSON with resnet result.",
         },
         400: {
+            "model": MessageError,
             "content": {
                 "application/json": {
-                    "schema": {
-                        "title": "Response",
-                        "type": "object",
-                        "properties": {
-                            "detail": {
-                                "title": "Error message", "type": "string",
-                            }
-                        },
-                    },
                     "examples": {
                         "invalid": {
                             "summary": "Invalid content type",
@@ -66,20 +63,12 @@ TENSORFLOW_URL = "http://{host}:{post}/v1/models/{model}:predict".format(
                     },
                 },
             },
-            "description": "Invalid file type.",
+            "description": "Invalid file.",
         },
         500: {
+            "model": MessageError,
             "content": {
                 "application/json": {
-                    "schema": {
-                        "title": "Tensorflow error response",
-                        "type": "object",
-                        "properties": {
-                            "detail": {
-                                "title": "Error message", "type": "string",
-                            }
-                        },
-                    },
                     "examples": {
                         "invalid": {
                             "summary": "Invalid response from TensorFlow",
@@ -96,7 +85,7 @@ TENSORFLOW_URL = "http://{host}:{post}/v1/models/{model}:predict".format(
                     },
                 },
             },
-            "description": "Error sending data to TensorFlow.",
+            "description": "Error sending/receiving data to/from TensorFlow.",
         }
     },
 )
@@ -130,21 +119,25 @@ async def resnet(img: UploadFile = File(...)):
         "status": response.status_code,
     })
     tf_data = response.json()
+
     if response.status_code != 200:
         error = tf_data.get("error", "Error processing file")
         raise HTTPException(status_code=500, detail=error)
+
     predictions = tf_data.get("predictions")
-    if not predictions:
+    if not isinstance(predictions, list) or not predictions:
         raise HTTPException(status_code=500, detail="No predictions received")
-    classes = predictions[0].get("classes")
-    if not isinstance(classes, int):
+
+    if not (isinstance(predictions[0], dict) and isinstance(predictions[0].get("classes"), int)):
         raise HTTPException(status_code=500, detail="Unexpected response from TensorFlow")
 
+    classes = predictions[0].get("classes")
     return {
         "class": classes
     }
 
+
 if __name__ == "__main__":
     import uvicorn
     reload = "--reload" in os.environ.get("API_ARGS", "")
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=reload)

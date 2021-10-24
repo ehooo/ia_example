@@ -1,8 +1,15 @@
+# resnet_client.py requirements
 requests
 Pillow
 numpy
 
+# API requiremetens
 fastapi
 python-multipart
 uvicorn[standard]
 httpx
+
+# Test requirements
+pytest
+pytest-cov
+flake8
