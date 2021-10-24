@@ -4,8 +4,8 @@ services:
     image: "prom/prometheus:latest"
     ports:
       - "9090:9090"
-    #volumes:
-    #  - "./config/prometheus.yml:/etc/prometheus/prometheus.yml"
+    volumes:
+      - "./config/prometheus.yml:/etc/prometheus/prometheus.yml"
 
   tensorflow:
     image: "ia_example:latest"
@@ -20,9 +20,12 @@ services:
     environment:
       TENSORFLOW_HOST: tensorflow
       API_ARGS: --reload
+    entrypoint: "python3 main.py"
     ports:
       - "8000:8000"
     volumes:
       - "./src/:/code/"
       - "./api_entrypoint.sh:/usr/bin/api_entrypoint.sh"
     user: "1000:1000"
+    depends_on:
+      - tensorflow

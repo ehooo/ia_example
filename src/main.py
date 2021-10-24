@@ -1,12 +1,10 @@
 import base64
 import logging
 import os
-from typing import Callable
 
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException
-from prometheus_client import Counter
-from prometheus_fastapi_instrumentator.metrics import Info
+from prometheus_client import Counter, REGISTRY
 from pydantic import BaseModel
 from prometheus_fastapi_instrumentator import Instrumentator
 
@@ -21,34 +19,23 @@ TENSORFLOW_URL = "http://{host}:{post}/v1/models/{model}:predict".format(
     model=os.environ.get("MODEL_NAME", "resnet"),
 )
 os.environ.setdefault('ENABLE_METRICS', 'true')
+
+# Fix double registered cause by async
+registered = {metric.name: metric for metric in REGISTRY.collect()}
 prometheus = Instrumentator(should_respect_env_var=True)
-try:
+if 'http_requests' not in registered:
     prometheus.instrument(app)
-except ValueError:
-    pass
 prometheus.expose(app, should_gzip=True, endpoint='/metrics')
 
-
-def http_requested_languages_total() -> Callable[[Info], None]:
-    METRIC = Counter(
-        "http_requested_languages_total",
-        "Number of times a certain language has been requested.",
-        labelnames=("langs",)
+if 'file_type' not in registered:
+    FILETYPE_COUNT = Counter(
+            "file_type_total",
+            "Number of different content-types uploaded.",
+            labelnames=("file_type",)
     )
-
-    def instrumentation(info: Info) -> None:
-        langs = set()
-        lang_str = info.request.headers["Accept-Language"]
-        for element in lang_str.split(","):
-            element = element.split(";")[0].strip().lower()
-            langs.add(element)
-        for language in langs:
-            METRIC.labels(language).inc()
-
-    return instrumentation
-
-
-prometheus.add(http_requested_languages_total())
+else:
+    FILETYPE_COUNT = REGISTRY._names_to_collectors['file_type']
+# End fix
 
 
 class MessageError(BaseModel):
@@ -123,6 +110,9 @@ class MessageError(BaseModel):
     },
 )
 async def resnet(img: UploadFile = File(...)):
+    counter = FILETYPE_COUNT.labels(file_type=img.content_type)
+    if hasattr(counter, 'inc'):
+        counter.inc()
     if not img.content_type.startswith("image/"):
         logger.debug("Invalid file", extra={
             "Content-Type": img.content_type,

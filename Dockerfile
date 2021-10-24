@@ -26,5 +26,5 @@ RUN pip3 install -r requirements.txt
 ADD ./api_entrypoint.sh /usr/bin/.
 COPY ./src .
 
-ENTRYPOINT ["bash"]
+ENTRYPOINT ["bash", "-c"]
 CMD ["/usr/bin/api_entrypoint.sh"]

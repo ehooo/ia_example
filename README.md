@@ -46,7 +46,7 @@ you could use that var to change the host used to process the prediction
 # Deploy
 * With Docker
 ```shell
-docker run -p 8000:8000 --name ia_example -e MODEL_NAME=resnet -t ia_example:latest -d
+docker run -d -p 8000:8000 --name ia_example -e MODEL_NAME=resnet -t ia_example:latest
 ```
 * With Docker-compose
   * __NOTE :__ In docker compose will be deployed two containers,
