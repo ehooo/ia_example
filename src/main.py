@@ -1,10 +1,14 @@
 import base64
 import logging
 import os
+from typing import Callable
 
 import httpx
 from fastapi import FastAPI, UploadFile, File, HTTPException
+from prometheus_client import Counter
+from prometheus_fastapi_instrumentator.metrics import Info
 from pydantic import BaseModel
+from prometheus_fastapi_instrumentator import Instrumentator
 
 app = FastAPI(
     docs_url="/doc",
@@ -16,6 +20,35 @@ TENSORFLOW_URL = "http://{host}:{post}/v1/models/{model}:predict".format(
     post=os.environ.get("TENSORFLOW_API_REST_PORT", 8501),
     model=os.environ.get("MODEL_NAME", "resnet"),
 )
+os.environ.setdefault('ENABLE_METRICS', 'true')
+prometheus = Instrumentator(should_respect_env_var=True)
+try:
+    prometheus.instrument(app)
+except ValueError:
+    pass
+prometheus.expose(app, should_gzip=True, endpoint='/metrics')
+
+
+def http_requested_languages_total() -> Callable[[Info], None]:
+    METRIC = Counter(
+        "http_requested_languages_total",
+        "Number of times a certain language has been requested.",
+        labelnames=("langs",)
+    )
+
+    def instrumentation(info: Info) -> None:
+        langs = set()
+        lang_str = info.request.headers["Accept-Language"]
+        for element in lang_str.split(","):
+            element = element.split(";")[0].strip().lower()
+            langs.add(element)
+        for language in langs:
+            METRIC.labels(language).inc()
+
+    return instrumentation
+
+
+prometheus.add(http_requested_languages_total())
 
 
 class MessageError(BaseModel):
